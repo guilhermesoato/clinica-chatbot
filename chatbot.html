@@ -120,6 +120,7 @@
 
         // Função genérica para enviar dados para a API
         async function postToAPI(endpoint, data) {
+            console.log('Tentando fazer POST para a URL:', `${API_BASE_URL}${endpoint}`);
             try {
                 const response = await fetch(`${API_BASE_URL}${endpoint}`, {
                     method: 'POST',
@@ -389,6 +390,7 @@
 </body>
 
 </html>
+
 
 
 
