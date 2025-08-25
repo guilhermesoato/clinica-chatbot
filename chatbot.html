@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot - Clínica Saúde</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100vh; overflow: hidden; }
+        .chat-container { height: 100vh; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; background: white; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+        .header { background: #3b82f6; color: white; padding: 1rem; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header-icon { width: 2rem; height: 2rem; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .header-info h1 { font-size: 1.25rem; font-weight: bold; margin-bottom: 0.25rem; }
+        .header-info p { font-size: 0.875rem; color: #bfdbfe; }
+        .messages-container { flex: 1; overflow-y: auto; padding: 1rem; background: linear-gradient(to bottom, #f8fafc, #ffffff); display: flex; flex-direction: column; gap: 1rem; }
+        .message { display: flex; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { justify-content: flex-end; }
+        .message.bot { justify-content: flex-start; }
+        .message-bubble { max-width: 75%; padding: 0.875rem 1rem; border-radius: 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative; }
+        .message-bubble.user { background: #3b82f6; color: white; border-bottom-right-radius: 0.375rem; }
+        .message-bubble.bot { background: white; color: #374151; border: 1px solid #e5e7eb; border-bottom-left-radius: 0.375rem; }
+        .message-content { white-space: pre-line; line-height: 1.5; }
+        .message-time { font-size: 0.75rem; margin-top: 0.5rem; opacity: 0.7; }
+        .typing-indicator { display: none; justify-content: flex-start; animation: slideIn 0.3s ease-out; }
+        .typing-indicator.show { display: flex; }
+        .typing-dots { background: white; border: 1px solid #e5e7eb; border-radius: 1.25rem; border-bottom-left-radius: 0.375rem; padding: 0.875rem 1rem; display: flex; gap: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .typing-dot { width: 0.5rem; height: 0.5rem; background: #9ca3af; border-radius: 50%; animation: typing 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-8px); opacity: 1; } }
+        .input-area { padding: 1rem; background: white; border-top: 1px solid #e5e7eb; }
+        .input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+        .message-input { flex: 1; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.75rem; font-size: 1rem; outline: none; transition: all 0.2s; }
+        .message-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .message-input:disabled { opacity: 0.5; cursor: not-allowed; }
+        .send-button { padding: 0.75rem 1.25rem; background: #3b82f6; color: white; border: none; border-radius: 0.75rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; min-width: 50px; }
+        .send-button:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
+        .send-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .quick-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .quick-action { padding: 0.375rem 0.875rem; border-radius: 1.5rem; font-size: 0.875rem; cursor: pointer; transition: all 0.2s; border: none; font-family: inherit; }
+        .quick-action:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .quick-action.green { background: #dcfce7; color: #166534; }
+        .quick-action.blue { background: #dbeafe; color: #1d4ed8; }
+        .quick-action.red { background: #fee2e2; color: #dc2626; }
+        .quick-action.gray { background: #f3f4f6; color: #374151; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            <div class="header-icon">🏥</div>
+            <div class="header-info">
+                <h1>Clínica Saúde</h1>
+                <p>Assistente para Agendamentos</p>
+            </div>
+        </div>
+        
+        <div id="messagesContainer" class="messages-container">
+            <div class="message bot">
+                <div class="message-bubble bot">
+                    <div class="message-content">Olá! Sou o assistente virtual da Clínica Saúde. Como posso ajudá-lo hoje? Você pode:
+
+• Agendar uma consulta
+• Cancelar um agendamento  
+• Reagendar uma consulta
+• Consultar horários disponíveis
+• Falar com atendimento</div>
+                    <div class="message-time" id="initialTime"></div>
+                </div>
+            </div>
+            
+            <div id="typingIndicator" class="typing-indicator">
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="input-row">
+                <input id="messageInput" type="text" placeholder="Digite sua mensagem..." class="message-input"/>
+                <button id="sendButton" class="send-button">➤</button>
+            </div>
+            <div class="quick-actions">
+                <button class="quick-action green" onclick="processUserInput('agendar')">📅 Agendar</button>
+                <button class="quick-action blue" onclick="processUserInput('horarios')">🕐 Horários</button>
+                <button class="quick-action red" onclick="processUserInput('cancelar')">❌ Cancelar</button>
+                <button class="quick-action gray" onclick="processUserInput('menu')">📋 Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============== CONFIGURAÇÃO DA API E SESSÃO ==============
+        const API_BASE_URL = 'http://localhost:3001/api';
+        let sessionId = null;
+
+        // ============== VARIÁVEIS GLOBAIS DO CHATBOT ==============
+        let currentFlow = 'menu';
+        let appointmentData = {};
+        let isTyping = false;
+        
+        const doctors = [
+            { id: 1, name: "Dr. João Silva", specialty: "Cardiologia", available: true },
+            { id: 2, name: "Dra. Maria Santos", specialty: "Dermatologia", available: true },
+            { id: 3, name: "Dr. Pedro Costa", specialty: "Ortopedia", available: true },
+            { id: 4, name: "Dra. Ana Lima", specialty: "Pediatria", available: true },
+            { id: 5, name: "Dr. Carlos Rocha", specialty: "Neurologia", available: false }
+        ];
+        
+        const timeSlots = [
+            "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
+            "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"
+        ];
+        
+        // ============== FUNÇÕES DE LOG E API ==============
+
+        // Função genérica para enviar dados para a API
+        async function postToAPI(endpoint, data) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...data, sessionId })
+                });
+                if (!response.ok) {
+                    console.error(`Erro na API (${endpoint}):`, response.statusText);
+                }
+            } catch (error) {
+                console.error(`Falha ao conectar com a API (${endpoint}):`, error);
+            }
+        }
+
+        function logMessage(sender, message) {
+            postToAPI('/logs/message', { sender, message, currentFlow });
+        }
+
+        function logAppointment(appointmentData) {
+            postToAPI('/logs/appointment', { appointmentData });
+        }
+        
+        // Inicia uma nova sessão quando a página carrega
+        async function startSession() {
+            sessionId = 'SES-' + Math.random().toString(36).substr(2, 8).toUpperCase();
+            await postToAPI('/sessions', { userAgent: navigator.userAgent });
+            console.log('Sessão iniciada:', sessionId);
+        }
+
+        // ============== FUNÇÕES DO CHATBOT (UI) ==============
+        
+        document.addEventListener('DOMContentLoaded', async function() {
+            await startSession(); // Inicia a sessão com a API
+            document.getElementById('initialTime').textContent = getCurrentTime();
+            updateInputState();
+            document.getElementById('messageInput').focus();
+        });
+        
+        function getCurrentTime() {
+            return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function scrollToBottom() {
+            const container = document.getElementById('messagesContainer');
+            setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+        }
+        
+        function updateInputState() {
+            const input = document.getElementById('messageInput');
+            const button = document.getElementById('sendButton');
+            input.disabled = isTyping;
+            button.disabled = isTyping;
+            button.textContent = isTyping ? '⏳' : '➤';
+        }
+        
+        function addMessage(text, sender) {
+            const messagesContainer = document.getElementById('messagesContainer');
+            const typingIndicator = document.getElementById('typingIndicator');
+            const timeStr = getCurrentTime();
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            messageDiv.innerHTML = `
+                <div class="message-bubble ${sender}">
+                    <div class="message-content">${text}</div>
+                    <div class="message-time">${timeStr}</div>
+                </div>
+            `;
+            messagesContainer.insertBefore(messageDiv, typingIndicator);
+            scrollToBottom();
+            
+            // Envia o log para a API
+            logMessage(sender, text);
+        }
+        
+        function showTyping() {
+            isTyping = true;
+            document.getElementById('typingIndicator').classList.add('show');
+            updateInputState();
+            scrollToBottom();
+        }
+        
+        function hideTyping() {
+            isTyping = false;
+            document.getElementById('typingIndicator').classList.remove('show');
+            updateInputState();
+        }
+        
+        function addBotMessage(text) {
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                addMessage(text, 'bot');
+            }, 1500);
+        }
+
+        // ============== LÓGICA PRINCIPAL DO CHATBOT ==============
+
+        function handleScheduleFlow(userInput) {
+            // ... (O código do fluxo de agendamento continua o mesmo do seu original)
+            // A única adição é no final, quando o agendamento é confirmado
+            // Cole todo o seu switch case 'handleScheduleFlow' aqui
+            switch (currentFlow) {
+                case 'schedule_specialty':
+                    const availableDoctors = doctors.filter(d => d.available);
+                    const specialties = [...new Set(availableDoctors.map(d => d.specialty))];
+                    let specialtyText = "Temos as seguintes especialidades disponíveis:\n\n";
+                    specialties.forEach((spec, idx) => { specialtyText += `${idx + 1}. ${spec}\n`; });
+                    specialtyText += "\nDigite o número da especialidade desejada:";
+                    addBotMessage(specialtyText);
+                    currentFlow = 'schedule_doctor';
+                    break;
+                case 'schedule_doctor':
+                    const specialtyIndex = parseInt(userInput) - 1;
+                    const availableSpecs = [...new Set(doctors.filter(d => d.available).map(d => d.specialty))];
+                    const selectedSpecialty = availableSpecs[specialtyIndex];
+                    if (selectedSpecialty) {
+                        appointmentData.specialty = selectedSpecialty;
+                        const doctorsInSpecialty = doctors.filter(d => d.specialty === selectedSpecialty && d.available);
+                        let doctorText = `Médicos disponíveis em ${selectedSpecialty}:\n\n`;
+                        doctorsInSpecialty.forEach((doc, idx) => { doctorText += `${idx + 1}. ${doc.name}\n`; });
+                        doctorText += "\nDigite o número do médico desejado:";
+                        addBotMessage(doctorText);
+                        currentFlow = 'schedule_date';
+                    } else {
+                        addBotMessage("Opção inválida. Por favor, escolha um número da lista.");
+                    }
+                    break;
+                case 'schedule_date':
+                    const doctorIndex = parseInt(userInput) - 1;
+                    const doctorsInSelectedSpecialty = doctors.filter(d => d.specialty === appointmentData.specialty && d.available);
+                    const selectedDoctor = doctorsInSelectedSpecialty[doctorIndex];
+                    if (selectedDoctor) {
+                        appointmentData.doctor = selectedDoctor;
+                        const today = new Date();
+                        const dates = [];
+                        for (let i = 1; i <= 7; i++) {
+                            const date = new Date(today);
+                            date.setDate(today.getDate() + i);
+                            if (date.getDay() !== 0) { dates.push(date.toLocaleDateString('pt-BR')); }
+                        }
+                        let dateText = "Datas disponíveis:\n\n";
+                        dates.forEach((date, idx) => { dateText += `${idx + 1}. ${date}\n`; });
+                        dateText += "\nDigite o número da data desejada:";
+                        addBotMessage(dateText);
+                        currentFlow = 'schedule_time';
+                    } else {
+                        addBotMessage("Opção inválida. Por favor, escolha um número da lista.");
+                    }
+                    break;
+                case 'schedule_time':
+                    const dateIndex = parseInt(userInput) - 1;
+                    if (dateIndex >= 0 && dateIndex < 7) {
+                        const today = new Date();
+                        const selectedDate = new Date(today);
+                        selectedDate.setDate(today.getDate() + dateIndex + 1);
+                        appointmentData.date = selectedDate.toLocaleDateString('pt-BR');
+                        let timeText = "Horários disponíveis:\n\n";
+                        timeSlots.forEach((time, idx) => { timeText += `${idx + 1}. ${time}\n`; });
+                        timeText += "\nDigite o número do horário desejado:";
+                        addBotMessage(timeText);
+                        currentFlow = 'schedule_patient_info';
+                    } else {
+                        addBotMessage("Opção inválida. Por favor, escolha um número da lista.");
+                    }
+                    break;
+                case 'schedule_patient_info':
+                    const timeIndex = parseInt(userInput) - 1;
+                    if (timeIndex >= 0 && timeIndex < timeSlots.length) {
+                        appointmentData.time = timeSlots[timeIndex];
+                        addBotMessage("Por favor, informe seu nome completo:");
+                        currentFlow = 'schedule_name';
+                    } else {
+                        addBotMessage("Opção inválida. Por favor, escolha um número da lista.");
+                    }
+                    break;
+                case 'schedule_name':
+                    appointmentData.patientName = userInput;
+                    addBotMessage("Agora, informe seu telefone para contato:");
+                    currentFlow = 'schedule_phone';
+                    break;
+                case 'schedule_phone':
+                    appointmentData.phone = userInput;
+                    addBotMessage("Por último, informe seu e-mail:");
+                    currentFlow = 'schedule_email';
+                    break;
+                case 'schedule_email':
+                    appointmentData.email = userInput;
+                    appointmentData.appointmentId = 'APT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+                    const confirmationText = `✅ Consulta agendada com sucesso!\n\n` +
+                        `📋 Detalhes do agendamento:\n` +
+                        `👤 Paciente: ${appointmentData.patientName}\n` +
+                        `🩺 Médico: ${appointmentData.doctor.name}\n` +
+                        `🏥 Especialidade: ${appointmentData.specialty}\n` +
+                        `📅 Data: ${appointmentData.date}\n` +
+                        `⏰ Horário: ${appointmentData.time}\n` +
+                        `🔢 Código: ${appointmentData.appointmentId}\n\n` +
+                        `Por favor, chegue 15 minutos antes.\n\n` +
+                        `Digite 'menu' para voltar ao menu principal.`;
+                    
+                    addBotMessage(confirmationText);
+                    
+                   
+                    logAppointment(appointmentData);
+
+                    currentFlow = 'menu';
+                    appointmentData = {};
+                    break;
+            }
+        }
+        
+        function processUserInput(input) {
+            const lowerInput = input.toLowerCase().trim();
+            if (isTyping) return;
+            addMessage(input, 'user');
+            
+            if (lowerInput === 'menu' || lowerInput === 'voltar') {
+                currentFlow = 'menu';
+                addBotMessage("Como posso ajudá-lo?\n\n• Agendar uma consulta\n• Cancelar um agendamento\n• Reagendar uma consulta\n• Consultar horários disponíveis\n• Falar com atendimento");
+                return;
+            }
+
+            if (currentFlow.startsWith('schedule')) {
+                handleScheduleFlow(input);
+                return;
+            }
+
+            // O restante da sua lógica 'processUserInput' continua a mesma
+            // Cole o restante da sua função 'processUserInput' aqui
+            if (lowerInput.includes('agendar') || lowerInput.includes('marcar') || lowerInput === '1') {
+                currentFlow = 'schedule_specialty';
+                addBotMessage("Vou ajudá-lo a agendar uma consulta. Primeiro, vamos escolher a especialidade médica.");
+                setTimeout(() => handleScheduleFlow(''), 2000);
+            } else if (lowerInput.includes('cancelar') || lowerInput === '2') {
+                addBotMessage("Para cancelar um agendamento, preciso do código da consulta:");
+                currentFlow = 'cancel';
+            } else if (lowerInput.includes('reagendar') || lowerInput === '3') {
+                addBotMessage("Para reagendar uma consulta, preciso do código do agendamento atual:");
+                currentFlow = 'reschedule';
+            } else if (lowerInput.includes('horarios') || lowerInput.includes('disponibilidade') || lowerInput === '4') {
+                addBotMessage("Nossos horários de funcionamento:\n\n🏥 Segunda a Sexta: 8h às 18h\n🏥 Sábados: 8h às 12h\n\nDigite 'menu' para voltar.");
+            } else if (lowerInput.includes('atendimento') || lowerInput.includes('falar') || lowerInput === '5') {
+                addBotMessage("Você será direcionado para nosso atendimento humano.\n\n📞 Telefone: (11) 3456-7890\n\nDigite 'menu' para voltar.");
+            } else if (currentFlow === 'cancel') {
+                addBotMessage(`✅ Consulta com código ${input.toUpperCase()} foi cancelada com sucesso!\n\nDigite 'menu' para voltar.`);
+                currentFlow = 'menu';
+            } else if (currentFlow === 'reschedule') {
+                addBotMessage(`✅ Consulta reagendada com sucesso!\n\nDigite 'menu' para voltar.`);
+                currentFlow = 'menu';
+            } else {
+                addBotMessage("Desculpe, não entendi. Por favor, escolha uma das opções do menu.");
+            }
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            if (input.value.trim() && !isTyping) {
+                processUserInput(input.value.trim());
+                input.value = '';
+            }
+        }
+        
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
